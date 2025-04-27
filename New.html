@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Save to div</title>
+    <script>
+        function saveToDiv() {
+            const text = document.getElementById("textInput").value;
+            document.getElementById("savedText").innerText = text;
+        }
+
+        function clearText() {
+            document.getElementById("textInput").value = "";
+        }
+    </script>
+</head>
+<body>
+    <textarea id="textInput" rows="10" cols="30" placeholder="input text..."></textarea><br>
+    <button onclick="saveToDiv()">save</button>
+    <button onclick="clearText()">delate</button>
+
+    <h3>saved text:</h3>
+    <div id="savedText" style="border:1px solid #ccc; padding:10px; min-height:50px;"></div>
+</body>
+</html>
