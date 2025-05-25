@@ -6,6 +6,10 @@ HOST = '0.0.0.0'
 PORT = int(os.environ.get('PORT', 8080))  # порт задаётся окружением
 DATA_FILE = 'data.json'
 
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump([], f, ensure_ascii=False)
+
 class SimpleRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         # Получаем длину данных
