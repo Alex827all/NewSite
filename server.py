@@ -1,88 +1,72 @@
-import os
+#!/usr/bin/env python3
+"""
+Простой JSON-хранилище:
+  • POST /    → сохраняет присланный JSON в data.json (добавляет в конец списка)
+  • GET  /    → отдаёт весь список из data.json
+Работает и локально, и на Replit/Railway/Render — порт берётся из env-переменной PORT.
+"""
+
 import json
-import uuid
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
 
-# Конфигурация
-HOST = '0.0.0.0'
-PORT = int(os.environ.get('PORT', 8080))
-DATA_FILE = 'data.json'
+HOST = "0.0.0.0"
+PORT = int(os.environ.get("PORT", 8080))      # ➜ 8080 локально, динамический онлайн
+DATA_FILE = "data.json"
 
-# Создание пустого файла при отсутствии
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump({}, f, ensure_ascii=False)
 
-class SimpleHandler(BaseHTTPRequestHandler):
-    def load_data(self):
-        if not os.path.exists(DATA_FILE):
-            return {}
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if not content:
-                    return {}
-                return json.loads(content)
-        except (json.JSONDecodeError, FileNotFoundError):
-            return {}
+def init_storage() -> None:
+    """Создаём data.json, если его ещё нет (пустой список [])."""
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f, ensure_ascii=False)
 
-    def save_data(self, data):
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def do_GET(self):
-        data = self.load_data()
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
+def load_all() -> list:
+    """Читает весь список записей (или возвращает пустой)."""
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def append_entry(entry: dict) -> None:
+    """Добавляет новую запись в конец списка и перезаписывает файл."""
+    data = load_all()
+    data.append(entry)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+class SimpleAPI(BaseHTTPRequestHandler):
+    def _json_response(self, payload, status=200):
+        payload_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'))
+        self.wfile.write(payload_bytes)
 
+    # -------- POST / --------
     def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        raw_data = self.rfile.read(content_length)
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length)
 
         try:
-            new_entry = json.loads(raw_data.decode('utf-8'))
-            data = self.load_data()
-            new_id = uuid.uuid4().hex[:8]
-            data[new_id] = new_entry
-            self.save_data(data)
-
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "id": new_id}).encode('utf-8'))
-
+            entry = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b'Invalid JSON\n')
-
-    def do_DELETE(self):
-        key = urlparse(self.path).path.strip("/")
-        if not key:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b'Missing key\n')
+            self._json_response({"error": "Invalid JSON"}, status=400)
             return
 
-        data = self.load_data()
+        append_entry(entry)
+        self._json_response({"status": "saved"})
 
-        if key in data:
-            del data[key]
-            self.save_data(data)
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(f'Deleted: {key}\n".encode("utf-8")')
-        else:
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b'Key not found\n')
+    # -------- GET / --------
+    def do_GET(self):
+        self._json_response(load_all())
 
-# Запуск сервера
+
 if __name__ == "__main__":
-    print(f"Server running at http://localhost:{PORT}")
-    server = HTTPServer((HOST, PORT), SimpleHandler)
-    server.serve_forever()
-
+    init_storage()
+    print(f"🚀 Server running at http://localhost:{PORT}")
+    HTTPServer((HOST, PORT), SimpleAPI).serve_forever()
