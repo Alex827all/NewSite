@@ -2,8 +2,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 
 # Настройки сервера
-HOST = 'localhost'
-PORT = 8080
+HOST = '0.0.0.0'
+PORT = int(os.environ.get('PORT', 8080))  # порт задаётся окружением
 DATA_FILE = 'data.json'
 
 class SimpleRequestHandler(BaseHTTPRequestHandler):
