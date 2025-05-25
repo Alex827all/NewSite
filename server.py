@@ -19,7 +19,7 @@ def init_storage() -> None:
     """Создаём data.json, если его ещё нет (пустой список [])."""
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f, ensure_ascii=False)
+            json.dump("file", f, ensure_ascii=False)
 
 
 def load_all() -> list:
