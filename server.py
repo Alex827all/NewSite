@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-"""
-Простейшее key-value JSON-хранилище.
-
- • POST   /        → добавляет/обновляет записи (JSON)
- • GET    /        → отдаёт весь словарь
- • DELETE /<key>   → удаляет запись по ключу
-
-Подходит для Replit/Railway: порт берётся из env «PORT».
-"""
-
 import json
 import os
 import uuid
@@ -19,33 +8,29 @@ HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", 8080))
 DATA_FILE = "data.json"
 
+# --- Утилиты для работы с файлом ---
 
-# ---------- вспомогательные функции ----------
-
-def ensure_storage_file() -> None:
-    """Создать файл-хранилище, если его нет (пустой словарь)."""
+def ensure_storage_file():
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f, ensure_ascii=False)
 
 
 def read_storage() -> dict:
-    """Прочитать словарь из файла; вернуть {} при ошибке."""
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            raw = f.read().strip()
-            return json.loads(raw) if raw else {}
-    except (FileNotFoundError, json.JSONDecodeError):
+            content = f.read().strip()
+            return json.loads(content) if content else {}
+    except Exception:
         return {}
 
 
-def write_storage(data: dict) -> None:
-    """Перезаписать файл новым содержимым."""
+def write_storage(data: dict):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ---------- HTTP-обработчик ----------
+# --- HTTP обработчик ---
 
 class KVHandler(BaseHTTPRequestHandler):
     def _json_response(self, payload, status=200):
@@ -56,34 +41,30 @@ class KVHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    # ======== POST / ========
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length)
 
         try:
-            incoming = json.loads(raw.decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError:
             self._json_response({"error": "invalid JSON"}, 400)
             return
 
         store = read_storage()
 
-        if isinstance(incoming, dict):
-            # Сливаем пришедший объект со словарём-хранилищем
-            store.update(incoming)
+        if isinstance(data, dict):
+            store.update(data)
         else:
-            # Кладём под случайным коротким ключом
-            store[uuid.uuid4().hex[:8]] = incoming
+            key = uuid.uuid4().hex[:8]
+            store[key] = data
 
         write_storage(store)
         self._json_response({"status": "ok", "size": len(store)})
 
-    # ======== GET / ========
     def do_GET(self):
         self._json_response(read_storage())
 
-    # ======== DELETE /<key> ========
     def do_DELETE(self):
         key = urlparse(self.path).path.lstrip("/")
         if not key:
@@ -99,7 +80,7 @@ class KVHandler(BaseHTTPRequestHandler):
             self._json_response({"error": "key not found"}, 404)
 
 
-# ---------- точка входа ----------
+# --- Запуск сервера ---
 
 if __name__ == "__main__":
     ensure_storage_file()
