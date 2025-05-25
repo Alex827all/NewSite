@@ -1,25 +1,50 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Save to div</title>
-    <script>
-        function saveToDiv() {
-            const text = document.getElementById("textInput").value;
-            document.getElementById("savedText").innerText = text;
-        }
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
 
-        function clearText() {
-            document.getElementById("textInput").value = "";
-        }
-    </script>
-</head>
-<body>
-    <textarea id="textInput" rows="10" cols="30" placeholder="input text..."></textarea><br>
-    <button onclick="saveToDiv()">save</button>
-    <button onclick="clearText()">delate</button>
+# Настройки сервера
+HOST = 'localhost'
+PORT = 8080
+DATA_FILE = 'data.json'
 
-    <h3>saved text:</h3>
-    <div id="savedText" style="border:1px solid #ccc; padding:10px; min-height:50px;"></div>
-</body>
-</html>
+class SimpleRequestHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        # Получаем длину данных
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+
+        try:
+            # Пытаемся прочитать как JSON
+            data = json.loads(post_data.decode('utf-8'))
+
+            # Сохраняем в файл
+            with open(DATA_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(data, ensure_ascii=False) + '\n')
+
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'Data saved\n')
+
+        except json.JSONDecodeError:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b'Invalid JSON\n')
+
+    def do_GET(self):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(content.encode('utf-8'))
+        except FileNotFoundError:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'File not found\n')
+
+# Запуск сервера
+if __name__ == '__main__':
+    server = HTTPServer((HOST, PORT), SimpleRequestHandler)
+    print(f'Server running on http://{HOST}:{PORT}')
+    server.serve_forever()
+
