@@ -10,6 +10,7 @@ DATA_FILE = "data.json"
 
 # --- Утилиты для работы с файлом ---
 
+
 def ensure_storage_file():
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -32,7 +33,9 @@ def write_storage(data: dict):
 
 # --- HTTP обработчик ---
 
+
 class KVHandler(BaseHTTPRequestHandler):
+
     def _json_response(self, payload, status=200):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
