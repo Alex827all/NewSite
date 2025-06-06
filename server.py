@@ -85,18 +85,35 @@ class KVHandler(BaseHTTPRequestHandler):
         self._json_response(read_storage())
 
     def do_DELETE(self):
-        key = urlparse(self.path).path.lstrip("/")
-        if not key:
+        path_parts = urlparse(self.path).path.strip("/").split("/")
+
+        if not path_parts or not path_parts[0]:
             self._json_response({"error": "missing key"}, 400)
             return
 
         store = read_storage()
-        if key in store:
-            del store[key]
+        current = store
+
+        # Навигация до предпоследнего уровня
+        for key in path_parts[:-1]:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                self._json_response(
+                    {"error": f"key path not found: {'/'.join(path_parts)}"},
+                    404)
+                return
+
+        last_key = path_parts[-1]
+        if isinstance(current, dict) and last_key in current:
+            del current[last_key]
             write_storage(store)
-            self._json_response({"status": "deleted", "key": key})
+            self._json_response({
+                "status": "deleted",
+                "path": "/".join(path_parts)
+            })
         else:
-            self._json_response({"error": "key not found"}, 404)
+            self._json_response({"error": "final key not found"}, 404)
 
     def do_PUT(self):
         key = urlparse(self.path).path.lstrip("/")
