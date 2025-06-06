@@ -82,10 +82,31 @@ class KVHandler(BaseHTTPRequestHandler):
         else:
             self._json_response({"error": "key not found"}, 404)
 
+    def do_PUT(self):
+        key = urlparse(self.path).path.lstrip("/")
+        if not key:
+            self._json_response({"error": "missing key"}, 400)
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length)
+
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._json_response({"error": "invalid JSON"}, 400)
+            return
+
+        store = read_storage()
+        store[key] = value
+        write_storage(store)
+        self._json_response({"status": "updated", "key": key})
+
 
 # --- Запуск сервера ---
 
 if __name__ == "__main__":
     ensure_storage_file()
-    print(f"🚀 Server running at http://localhost:{PORT}")
+    print(f"\U0001F680 Server running at http://localhost:{PORT}")
     HTTPServer((HOST, PORT), KVHandler).serve_forever()
+
