@@ -54,6 +54,22 @@ class KVHandler(BaseHTTPRequestHandler):
             self._json_response({"error": "invalid JSON"}, 400)
             return
 
+        # Проверка на логин через nick и password
+        if isinstance(data, dict) and "nick" in data and "password" in data:
+            store = read_storage()
+            for user_id, user_data in store.items():
+                if isinstance(user_data, dict):
+                    if user_data.get("password") == data["password"]:
+                        player_stat = user_data.get("playerStat", {})
+                        if player_stat.get("nick") == data["nick"]:
+                            self._json_response({
+                                "id": user_id,
+                                "data": user_data
+                            })
+                            return
+            self._json_response({"error": "совпадений не найдено"}, 403)
+            return
+
         store = read_storage()
 
         if isinstance(data, dict):
@@ -109,4 +125,3 @@ if __name__ == "__main__":
     ensure_storage_file()
     print(f"\U0001F680 Server running at http://localhost:{PORT}")
     HTTPServer((HOST, PORT), KVHandler).serve_forever()
-
