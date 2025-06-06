@@ -10,12 +10,10 @@ DATA_FILE = "data.json"
 
 # --- Утилиты для работы с файлом ---
 
-
 def ensure_storage_file():
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f, ensure_ascii=False)
-
 
 def read_storage() -> dict:
     try:
@@ -25,14 +23,11 @@ def read_storage() -> dict:
     except Exception:
         return {}
 
-
 def write_storage(data: dict):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-
 # --- HTTP обработчик ---
-
 
 class KVHandler(BaseHTTPRequestHandler):
 
@@ -62,16 +57,38 @@ class KVHandler(BaseHTTPRequestHandler):
                     if user_data.get("password") == data["password"]:
                         player_stat = user_data.get("playerStat", {})
                         if player_stat.get("nick") == data["nick"]:
-                            self._json_response({
-                                "id": user_id,
-                                "data": user_data
-                            })
+                            self._json_response({"id": user_id, "data": user_data})
                             return
             self._json_response({"error": "совпадений не найдено"}, 403)
             return
 
         store = read_storage()
 
+        # Обработка create, если указан action: "create"
+        if isinstance(data, dict) and data.get("action") == "create":
+            data_copy = data.copy()
+            data_copy.pop("action")
+            for key in data_copy:
+                if key in store:
+                    self._json_response({"error": f"ключ '{key}' уже существует"}, 409)
+                    return
+            store.update(data_copy)
+            write_storage(store)
+            self._json_response({"status": "created", "size": len(store)})
+            return
+
+        # Добавление значения во вложенный путь
+        if isinstance(data, dict) and "path" in data and "key" in data and "value" in data:
+            parts = data["path"].split("/")
+            current = store
+            for part in parts:
+                current = current.setdefault(part, {})
+            current[data["key"]] = data["value"]
+            write_storage(store)
+            self._json_response({"status": "nested key added"})
+            return
+
+        # Обычное поведение
         if isinstance(data, dict):
             store.update(data)
         else:
@@ -99,19 +116,14 @@ class KVHandler(BaseHTTPRequestHandler):
             if isinstance(current, dict) and key in current:
                 current = current[key]
             else:
-                self._json_response(
-                    {"error": f"key path not found: {'/'.join(path_parts)}"},
-                    404)
+                self._json_response({"error": f"key path not found: {'/'.join(path_parts)}"}, 404)
                 return
 
         last_key = path_parts[-1]
         if isinstance(current, dict) and last_key in current:
             del current[last_key]
             write_storage(store)
-            self._json_response({
-                "status": "deleted",
-                "path": "/".join(path_parts)
-            })
+            self._json_response({"status": "deleted", "path": "/".join(path_parts)})
         else:
             self._json_response({"error": "final key not found"}, 404)
 
@@ -134,7 +146,6 @@ class KVHandler(BaseHTTPRequestHandler):
         store[key] = value
         write_storage(store)
         self._json_response({"status": "updated", "key": key})
-
 
 # --- Запуск сервера ---
 
