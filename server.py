@@ -27,6 +27,7 @@ def read_storage() -> dict:
 
 
 def write_storage(data: dict):
+    print("write_storage ", data)
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -74,23 +75,9 @@ class KVHandler(BaseHTTPRequestHandler):
 
         store = read_storage()
 
-        # Добавление значения во вложенный путь
-        if isinstance(
-                data,
-                dict) and "path" in data and "key" in data and "value" in data:
-            print("Добавление значения во вложенный путь")
-            parts = data["path"].split("/")
-            print("parts ", parts)
-            current = store
-            for part in parts:
-                current = current.setdefault(part, {})
-            current[data["key"]] = data["value"]
-            write_storage(store)
-            self._json_response({"status": "nested key added"})
-            return
-
         # Обычное поведение
         if isinstance(data, dict):
+            print("store.update(data)")
             store.update(data)
         else:
             key = uuid.uuid4().hex[:8]
@@ -134,8 +121,8 @@ class KVHandler(BaseHTTPRequestHandler):
             self._json_response({"error": "final key not found"}, 404)
 
     def do_PUT(self):
-        key = urlparse(self.path).path.lstrip("/")
-        if not key:
+        path_parts = urlparse(self.path).path.strip("/").split("/")
+        if not path_parts or not path_parts[0]:
             self._json_response({"error": "missing key"}, 400)
             return
 
@@ -149,9 +136,25 @@ class KVHandler(BaseHTTPRequestHandler):
             return
 
         store = read_storage()
-        store[key] = value
-        write_storage(store)
-        self._json_response({"status": "updated", "key": key})
+        current = store
+
+        # Переход по ключам
+        for key in path_parts[:-1]:
+            current = current.setdefault(key, {})
+
+        last_key = path_parts[-1]
+        target = current.setdefault(last_key, {})
+
+        if isinstance(target, dict) and isinstance(value, dict):
+            target.update(value)
+            write_storage(store)
+            self._json_response({
+                "status": "partial update",
+                "path": "/".join(path_parts)
+            })
+        else:
+            self._json_response(
+                {"error": "invalid structure for partial update"}, 400)
 
 
 # --- Запуск сервера ---
