@@ -1,5 +1,3 @@
-json
-os
-uuid
-urllib
-http
+
+uuid == 0.11.0
+urllib == 2.4.0
